@@ -1,0 +1,75 @@
+version: '3'
+
+services:
+  db:
+    image: mysql:8
+    environment:
+      MYSQL_DATABASE: database
+      MYSQL_USER: dbuser
+      MYSQL_PASSWORD: dbpassword
+      MYSQL_ROOT_PASSWORD: dbrootpassword
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./database/mysql-data:/var/lib/mysql
+
+  redis:
+    image: redis:latest
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis-data:/data
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile-dev
+    command: >
+      sh -c "./wait-for-it.sh -t 30 db:3306 &&
+            python manage.py makemigrations &&
+            python manage.py migrate &&
+            python manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - ./backend:/app
+      - /app/static
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+    environment:
+      DATABASE_URL: mysql://dbuser:dbpassword@db:3306/database
+      REDIS_URL: redis://redis:6379/0
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile-dev
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+      - WATCHPACK_POLLING=true
+
+  fastapi:
+    build:
+      context: ./fastapi
+      dockerfile: Dockerfile-dev
+    command: uvicorn main:app --host 0.0.0.0 --port 9000
+    volumes:
+      - ./fastapi:/app
+    ports:
+      - "9000:9000"
+    depends_on:
+      - db
+      - redis
+    environment:
+      DATABASE_URL: mysql://dbuser:dbpassword@db:3306/database
+      REDIS_URL: redis://redis:6379/0
+
+volumes:
+  mysql-data:
+  redis-data:
