@@ -1,2 +1,2 @@
-database/mysql-data/*
+# database/mysql-data/*
 redis-data/
